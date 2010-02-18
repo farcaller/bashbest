@@ -1,0 +1,14 @@
+This is a very simple utility to download quotes from http://bash.org.ru.
+
+Dependencies:
+  Python >=2.6
+  lxml
+
+Usage:
+  ./bashbest.py fetch <start> <end> <file>
+
+Will fetch quotes in range start..end, and save them to file in Apple Property List format (XML). If the file already exists – will skip already fetched quotes.
+
+  ./bashbest.py sort <file> | less
+
+Loads quotes from file and sorts them by rating, best for reading.
