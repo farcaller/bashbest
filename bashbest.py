@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import re, datetime, urllib, plistlib, sys
+import re, datetime, urllib, plistlib, sys, os
 from lxml import etree
 
 RX_DATE = re.compile(r'.*(\d{4,4}-\d{2,2}-\d{2,2}).*(\d{2,2}:\d{2,2}).*')
@@ -51,7 +51,11 @@ def resort_quotes(d):
 if __name__ == '__main__':
     if sys.argv[1] == 'fetch':
         s,e,f = sys.argv[2:]
-        q = fetch_quotes(int(s),int(e))
+        if os.path.isfile(f):
+            d = plistlib.readPlist(f)
+        else:
+            d = None
+        q = fetch_quotes(int(s),int(e), d)
         plistlib.writePlist(q, f)
     elif sys.argv[1] == 'sort':
         d = plistlib.readPlist(sys.argv[2])
