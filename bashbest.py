@@ -44,6 +44,7 @@ def resort_quotes(d):
     from operator import itemgetter
     l = []
     for k,v in d.iteritems():
+        v['id'] = k
         l.append(v)
     return sorted(l, key=itemgetter('rate'), reverse=True)
     
@@ -61,4 +62,5 @@ if __name__ == '__main__':
         d = plistlib.readPlist(sys.argv[2])
         l = resort_quotes(d)
         for i in l:
+            print "** ID %7s ** RATE %s ** %s **" % (i['id'], i['rate'], i['date'])
             print i['quote'].encode('utf8')
