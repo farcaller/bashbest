@@ -1,73 +1,60 @@
 #!/usr/bin/env python
 
-from objc import *
-from Foundation import *
-import re, datetime
+import re, datetime, urllib, plistlib, sys
+from lxml import etree
 
-RX_DATE = r'.*(\d{4,4}-\d{2,2}-\d{2,2}).*(\d{2,2}:\d{2,2}).*'
+RX_DATE = re.compile(r'.*(\d{4,4}-\d{2,2}-\d{2,2}).*(\d{2,2}:\d{2,2}).*')
 
 def fetch_quote(i):
-	if type(i) == int:
-		u = NSURL.URLWithString_('http://bash.org.ru/quote/%d' % (i, ))
-	else:
-		u = NSURL.URLWithString_(i)
-	doc,err = NSXMLDocument.alloc().initWithContentsOfURL_options_error_(u, NSXMLDocumentTidyHTML, None)
-	if err and err.domain() != u'NSXMLParserErrorDomain':
-		raise Exception(err)
-	else:
-		root = doc.rootElement()
-		n, err = root.nodesForXPath_error_("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[2]", None)
-		quote = u""
-		for sn in n[0].children():
-			if sn.kind() == 7:
-				quote += sn.stringValue()
-			elif sn.kind() == 2 and sn.name() == 'br':
-				quote += '\n'
-		#quote = quote.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
-		n, err = root.nodesForXPath_error_("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[1]/span", None)
-		rate = int(str(n[0].children()[0]))
-		n, err = root.nodesForXPath_error_("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[1]", None)
-		dt, hr = RX_DATE.match(n[0].stringValue()).groups()
-		return i, rate, quote, dt, hr
+    if type(i) == int:
+        u = 'http://bash.org.ru/quote/%d' % (i, )
+    else:
+        u = i
+    
+    data = urllib.urlopen(u).read()
+    html = etree.HTML(data)
+    
+    div = html.xpath("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[2]")[0]
+    quote_text = ''.join([div.text,]+['\n'+br.tail for br in div.getchildren()]+[div.tail,])
+    rate = int(html.xpath("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[1]/span")[0].text)
+    date = RX_DATE.search(html.xpath("/html/body/div[@id='page']/div[@id='quotes']/div[1]/div[1]/a[4]")[0].tail.strip()).groups()
+    yy,mo,da = date[0].split('-')
+    hr,mi = date[1].split(':')
+    return dict(quote=quote_text, rate=rate, date=datetime.datetime(int(yy),int(mo),int(da),int(hr),int(mi)))
 
 def fetch_quotes(start, end, known=None):
-	l = {}
-	if known:
-		l = known
-	
-	for i in range(start,end+1):
-		if str(i) in l: continue
-		
-		print "fetching %d..." % (i, )
-		try:
-			i, r, q, d, h = fetch_quote(i)
-		except:
-			print "   failed :("
-			continue
-		yy,mo,da = d.split('-')
-		hr,mi = h.split(':')
-		dt = datetime.datetime(yy,mo,da,hr,mi)
-		l[str(i)] = dict(rate=r, quote=q, date=dt)
-	
-	return l
+    l = {}
+    if known:
+        l = known
+    
+    for i in range(start,end+1):
+        if str(i) in l: continue
+        
+        print "fetching %d..." % (i, )
+        try:
+            quote = fetch_quote(i)
+        except:
+            print "   failed :("
+            continue
+        l[str(i)] = quote
+    
+    return l
 
 def resort_quotes(d):
-	from operator import itemgetter
-	l = []
-	for k,v in d.iteritems():
-		l.append(v)
-	return sorted(l, key=itemgetter('rate'), reverse=True)
-	
+    from operator import itemgetter
+    l = []
+    for k,v in d.iteritems():
+        l.append(v)
+    return sorted(l, key=itemgetter('rate'), reverse=True)
+    
 
 if __name__ == '__main__':
-	import sys, plistlib
-	if sys.argv[1] == 'fetch':
-		s,e,f = sys.argv[2:]
-		q = fetch_quotes(int(s),int(e))
-		d, e = NSPropertyListSerialization.dataFromPropertyList_format_errorDescription_(q, NSPropertyListXMLFormat_v1_0, None)
-		d.writeToFile_atomically_(f, YES)
-	elif sys.argv[1] == 'sort':
-		d = plistlib.readPlist(sys.argv[2])
-		l = resort_quotes(d)
-		for i in l:
-			print i['quote'].encode('utf8')
+    if sys.argv[1] == 'fetch':
+        s,e,f = sys.argv[2:]
+        q = fetch_quotes(int(s),int(e))
+        plistlib.writePlist(q, f)
+    elif sys.argv[1] == 'sort':
+        d = plistlib.readPlist(sys.argv[2])
+        l = resort_quotes(d)
+        for i in l:
+            print i['quote'].encode('utf8')
